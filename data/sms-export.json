@@ -1,0 +1,52 @@
+[
+  {
+    "address": "VM-HDFCBK",
+    "body": "Dear Customer, your A/c XX1234 is debited with Rs.1,250.00 on 15-Jan-26 for purchase at SWIGGY BANGALORE. Avl Bal: Rs.45,230.50. HDFC Bank",
+    "date": "2026-01-15T14:30:00Z"
+  },
+  {
+    "address": "SBI",
+    "body": "Rs 2500.00 debited from A/c **5678 on 14-Jan-26 to VPA amazon@paytm (UPI Ref No 401234567890). If not done by you, call 1800112211 - SBI",
+    "date": "2026-01-14T10:15:00Z"
+  },
+  {
+    "address": "ICICIBANK",
+    "body": "INR 850.00 debited from A/c XX9012 on 13-Jan-26 at UBER *TRIP. Avl Bal: INR 32,450.75. Not you? Call 18002662",
+    "date": "2026-01-13T18:45:00Z"
+  },
+  {
+    "address": "VM-HDFCBK",
+    "body": "Dear Customer, Rs.3,500.00 credited to A/c XX1234 on 12-Jan-26 (NEFT-AXIS0001234-SALARY). Avl Bal: Rs.48,730.50. HDFC Bank",
+    "date": "2026-01-12T09:30:00Z"
+  },
+  {
+    "address": "ICICIBANK",
+    "body": "INR 475.50 debited from A/c XX9012 on 11-Jan-26 at ZOMATO. Avl Bal: INR 31,600.25. Not you? Call 18002662",
+    "date": "2026-01-11T20:10:00Z"
+  },
+  {
+    "address": "SBI",
+    "body": "Rs 15000.00 credited to A/c **5678 on 10-Jan-26 (IMPS-P234567890-FROM FATHER). Avl Bal: Rs 67500.00 - SBI",
+    "date": "2026-01-10T11:20:00Z"
+  },
+  {
+    "address": "VM-IDFCFB",
+    "body": "IDFC FIRST Bank: Rs 1200.00 debited from A/c XX3456 on 09-Jan-26 for payment at FLIPKART. Available Balance: Rs 23450.80",
+    "date": "2026-01-09T15:30:00Z"
+  },
+  {
+    "address": "RBLBNK",
+    "body": "Your RBL Bank A/c XX7890 debited by INR 650.00 on 08-Jan-26 towards NETFLIX.COM. Avl Bal: INR 18920.45. Call 022-62327777",
+    "date": "2026-01-08T08:00:00Z"
+  },
+  {
+    "address": "VM-HDFCBK",
+    "body": "Dear Customer, your A/c XX1234 is debited with Rs.2,800.00 on 07-Jan-26 for purchase at RELIANCE DIGITAL. Avl Bal: Rs.45,930.50. HDFC Bank",
+    "date": "2026-01-07T16:45:00Z"
+  },
+  {
+    "address": "SBI",
+    "body": "Rs 890.00 debited from A/c **5678 on 06-Jan-26 to VPA paytm@paytm (UPI Ref No 401234567891). If not done by you, call 1800112211 - SBI",
+    "date": "2026-01-06T12:30:00Z"
+  }
+]

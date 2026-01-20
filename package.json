@@ -1,0 +1,41 @@
+{
+  "name": "expense-tracker-scraper",
+  "version": "1.0.0",
+  "description": "Automated data scraper for stocks, mutual funds, and SMS transactions",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "scrape:stocks": "tsx src/scrapers/stocks.ts",
+    "scrape:mf": "tsx src/scrapers/mutualFunds.ts",
+    "scrape:sms": "tsx src/parsers/smsParser.ts",
+    "sync": "tsx src/sync.ts",
+    "auth:gmail": "tsx src/auth/gmail-auth.ts",
+    "test:azure": "tsx src/test-azure.ts"
+  },
+  "dependencies": {
+    "playwright": "^1.42.0",
+    "googleapis": "^134.0.0",
+    "openai": "^4.28.0",
+    "@anthropic-ai/sdk": "^0.21.0",
+    "axios": "^1.7.0",
+    "dotenv": "^16.4.0",
+    "date-fns": "^3.0.0",
+    "open": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.9.0",
+    "tsx": "^4.7.0"
+  },
+  "keywords": [
+    "scraper",
+    "automation",
+    "finance",
+    "sms-parser"
+  ],
+  "author": "",
+  "license": "MIT"
+}

@@ -1,0 +1,15 @@
+{
+  "lastSyncTimestamp": "2026-01-19T14:42:14.729Z",
+  "processedMessageIds": [
+    "VM-HDFCBK-2026-01-15T14:30:00Z-Dear Customer, your A/c XX1234 is debited with Rs.",
+    "SBI-2026-01-14T10:15:00Z-Rs 2500.00 debited from A/c **5678 on 14-Jan-26 to",
+    "ICICIBANK-2026-01-13T18:45:00Z-INR 850.00 debited from A/c XX9012 on 13-Jan-26 at",
+    "VM-HDFCBK-2026-01-12T09:30:00Z-Dear Customer, Rs.3,500.00 credited to A/c XX1234 ",
+    "ICICIBANK-2026-01-11T20:10:00Z-INR 475.50 debited from A/c XX9012 on 11-Jan-26 at",
+    "SBI-2026-01-10T11:20:00Z-Rs 15000.00 credited to A/c **5678 on 10-Jan-26 (I",
+    "VM-IDFCFB-2026-01-09T15:30:00Z-IDFC FIRST Bank: Rs 1200.00 debited from A/c XX345",
+    "RBLBNK-2026-01-08T08:00:00Z-Your RBL Bank A/c XX7890 debited by INR 650.00 on ",
+    "VM-HDFCBK-2026-01-07T16:45:00Z-Dear Customer, your A/c XX1234 is debited with Rs.",
+    "SBI-2026-01-06T12:30:00Z-Rs 890.00 debited from A/c **5678 on 06-Jan-26 to "
+  ]
+}
