@@ -1,13 +1,14 @@
 # Expense Tracker - Scraper
 
-Automated data collection for stocks, mutual funds, and SMS transactions.
+Automated data collection for stocks, mutual funds, credit card statements, and SMS transactions.
 
 ## Features
 
 - **Stock Scraping**: Zerodha/Groww portfolio via Playwright
 - **Mutual Fund Statements**: CAMS/KFintech via Gmail API
+- **Credit Card Statements**: Parse PDF statements from Gmail (HDFC, ICICI, SBI, Axis, Kotak, etc.)
 - **SMS Parsing**: AI-powered transaction extraction (OpenAI GPT-4)
-- **Auto Sync**: Push data to PHP backend
+- **Auto Sync**: Push data to PHP backend with duplicate detection
 
 ## Setup
 
@@ -45,18 +46,29 @@ npx playwright install chromium
 
 ## Usage
 
-### Run Full Sync
+### Run All Scrapers
 
 ```bash
-npm run dev
+npm run dev          # Run all scrapers (stocks, MF, CC, SMS)
+npm run dev:all      # Same as above
 ```
 
-### Individual Scrapers
+### Run Individual Scrapers
 
 ```bash
-npm run scrape:stocks       # Scrape stocks only
-npm run scrape:mf           # Fetch mutual funds
-npm run scrape:sms          # Parse SMS transactions
+npm run dev:stocks   # Stocks only
+npm run dev:mf       # Mutual funds only
+npm run dev:cc       # Credit card statements only
+npm run dev:sms      # SMS transactions only
+```
+
+### Or use arguments directly
+
+```bash
+npm run dev stocks   # Stocks only
+npm run dev mf       # Mutual funds only
+npm run dev cc       # Credit card statements only
+npm run dev sms      # SMS transactions only
 ```
 
 ## SMS Export

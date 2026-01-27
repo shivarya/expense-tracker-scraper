@@ -1,0 +1,2 @@
+# Ignore sensitive or local-only config files
+pdf-passwords.json

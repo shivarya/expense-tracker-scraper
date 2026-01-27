@@ -7,6 +7,11 @@
   "scripts": {
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
+    "dev:all": "tsx src/index.ts all",
+    "dev:stocks": "tsx src/index.ts stocks",
+    "dev:mf": "tsx src/index.ts mf",
+    "dev:cc": "tsx src/index.ts cc",
+    "dev:sms": "tsx src/index.ts sms",
     "build": "tsc",
     "scrape:stocks": "tsx src/scrapers/stocks.ts",
     "scrape:mf": "tsx src/scrapers/mutualFunds.ts",
@@ -16,19 +21,21 @@
     "test:azure": "tsx src/test-azure.ts"
   },
   "dependencies": {
-    "playwright": "^1.42.0",
-    "googleapis": "^134.0.0",
-    "openai": "^4.28.0",
     "@anthropic-ai/sdk": "^0.21.0",
     "axios": "^1.7.0",
-    "dotenv": "^16.4.0",
     "date-fns": "^3.0.0",
-    "open": "^10.0.0"
+    "dotenv": "^16.4.0",
+    "googleapis": "^134.0.0",
+    "node-qpdf2": "^6.0.0",
+    "open": "^10.0.0",
+    "openai": "^4.28.0",
+    "pdf-parse": "^2.4.5",
+    "playwright": "^1.42.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
-    "typescript": "^5.9.0",
-    "tsx": "^4.7.0"
+    "tsx": "^4.7.0",
+    "typescript": "^5.9.0"
   },
   "keywords": [
     "scraper",
