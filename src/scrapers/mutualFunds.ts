@@ -162,7 +162,7 @@ function extractPasswordFromEmail(body: string, subject: string): string | null 
   return null;
 }
 
-async function parsePDFWithAI(pdfText: string, subject: string): Promise<any> {
+export async function parsePDFWithAI(pdfText: string, subject: string): Promise<any> {
   const isAzure = !!process.env.AZURE_OPENAI_ENDPOINT;
 
   const openai = new OpenAI(
@@ -180,45 +180,49 @@ async function parsePDFWithAI(pdfText: string, subject: string): Promise<any> {
     ? process.env.AZURE_OPENAI_DEPLOYMENT!
     : (process.env.OPENAI_MODEL || 'gpt-4-turbo');
 
-  const systemPrompt = `You are a financial data extraction assistant. Extract holdings from statements (stocks or mutual funds).
+  const systemPrompt = `You are a financial data extraction assistant. Extract ALL holdings from consolidated account statements (eCAS) that may contain BOTH stocks and mutual funds.
 
-Detect the statement type and return ONLY a JSON object (no markdown, no code blocks):
+IMPORTANT: Extract EVERY stock and EVERY mutual fund listed in the statement. Do not skip any holdings.
 
-For STOCK statements (CDSL/NSDL eCAS with ISIN codes):
+Return ONLY a JSON object (no markdown, no code blocks):
+
 {
-  "type": "stocks",
-  "account_number": "DP ID or account number",
-  "investor_name": "name",
+  "type": "consolidated",
+  "account_number": "DP ID or primary account number",
+  "investor_name": "investor name",
   "statement_date": "YYYY-MM-DD",
-  "holdings": [
+  "statement_period": "period if mentioned",
+  "stocks": [
     {
-      "isin": "ISIN code",
-      "name": "company/security name",
-      "quantity": number,
-      "price": number,
-      "value": number
+      "isin": "ISIN code (e.g., INE123A01012)",
+      "name": "company name - security description",
+      "quantity": number (current balance/free balance),
+      "price": number (market price or closing price),
+      "value": number (market value)
+    }
+  ],
+  "mutual_funds": [
+    {
+      "folio": "folio number",
+      "name": "scheme name",
+      "units": number (closing balance),
+      "nav": number (NAV per unit),
+      "amount": number (closing balance amount/current value)
     }
   ]
 }
 
-For MUTUAL FUND statements (CAMS/KFintech):
-{
-  "type": "mutual_funds",
-  "account_number": "folio number",
-  "investor_name": "name",
-  "statement_date": "YYYY-MM-DD",
-  "holdings": [
-    {
-      "name": "fund name",
-      "units": number,
-      "nav": number,
-      "purchase_value": number,
-      "current_value": number
-    }
-  ]
-}`;
+Instructions:
+- Look for sections like "Equity Statement", "Demat Holdings", "Stock Statement" for equities
+- Look for sections like "Mutual Fund", "MF Folios", "Scheme Transactions" for mutual funds
+- Extract the CLOSING/CURRENT balance (not transaction details)
+- For stocks: ISIN is mandatory, extract from the statement
+- For mutual funds: Folio number and scheme name are mandatory
+- Market price/NAV: use the latest value shown
+- If a section is not present, return empty array for that type
+- Extract ALL holdings - do not limit or skip any`;
 
-  const userPrompt = `Subject: ${subject}\n\nStatement Content:\n${pdfText.substring(0, 8000)}`;
+  const userPrompt = `Subject: ${subject}\n\nStatement Content:\n${pdfText.substring(0, 20000)}`;
 
   try {
     const response = await openai.chat.completions.create({
@@ -228,7 +232,7 @@ For MUTUAL FUND statements (CAMS/KFintech):
         { role: 'user', content: userPrompt }
       ],
       temperature: 0,
-      max_completion_tokens: 2000
+      max_completion_tokens: 4000
     });
 
     const content = response.choices[0].message.content?.trim() || '{}';
@@ -245,6 +249,7 @@ export async function scrapeMutualFunds() {
   console.log('  → Authenticating with Gmail...');
 
   const mutualFunds = [];
+  const stocks = [];
 
   try {
     // Check last sync date to avoid re-downloading
@@ -440,40 +445,48 @@ export async function scrapeMutualFunds() {
               console.log(`    → Parsing with AI...`);
               const aiResult = await parsePDFWithAI(pdfText, subject);
 
-              if (aiResult.holdings && aiResult.holdings.length > 0) {
-                if (aiResult.type === 'stocks') {
-                  console.log(`    ✓ Found ${aiResult.holdings.length} stock holdings`);
-                  
-                  for (const holding of aiResult.holdings) {
-                    mutualFunds.push({
-                      type: 'stock',
-                      isin: holding.isin || '',
-                      name: holding.name,
-                      quantity: holding.quantity || 0,
-                      price: holding.price || 0,
-                      value: holding.value || 0,
-                      statement_date: aiResult.statement_date || ''
-                    });
-                  }
-                } else if (aiResult.type === 'mutual_funds') {
-                  console.log(`    ✓ Found ${aiResult.holdings.length} mutual fund holdings`);
-
-                  for (const holding of aiResult.holdings) {
-                    mutualFunds.push({
-                      type: 'mutual_fund',
-                      fund_name: holding.name,
-                      amc: extractAMC(holding.name),
-                      folio_number: aiResult.account_number || 'XXXXX',
-                      units: holding.units || 0,
-                      nav: holding.nav || 0,
-                      invested_amount: holding.purchase_value || 0,
-                      current_value: holding.current_value || 0
-                    });
-                  }
-                } else {
-                  console.log(`    ⚠️  Unknown statement type: ${aiResult.type}`);
+              // Handle consolidated statements with both stocks and mutual funds
+              const stockHoldings = aiResult.stocks || [];
+              const mfHoldings = aiResult.mutual_funds || [];
+              
+              if (stockHoldings.length > 0) {
+                console.log(`    ✓ Found ${stockHoldings.length} stock holdings`);
+                
+                for (const holding of stockHoldings) {
+                  stocks.push({
+                    type: 'stock',
+                    isin: holding.isin || '',
+                    company_name: holding.name,
+                    symbol: holding.isin || holding.name.substring(0, 10),
+                    platform: 'CDSL',
+                    quantity: holding.quantity || 0,
+                    average_price: holding.price || 0,
+                    invested_amount: (holding.quantity || 0) * (holding.price || 0),
+                    current_value: holding.value || 0,
+                    current_price: holding.price || 0,
+                    statement_date: aiResult.statement_date || ''
+                  });
                 }
-              } else {
+              }
+              
+              if (mfHoldings.length > 0) {
+                console.log(`    ✓ Found ${mfHoldings.length} mutual fund holdings`);
+                
+                for (const holding of mfHoldings) {
+                  mutualFunds.push({
+                    type: 'mutual_fund',
+                    fund_name: holding.name,
+                    amc: extractAMC(holding.name),
+                    folio_number: holding.folio || 'XXXXX',
+                    units: holding.units || 0,
+                    nav: holding.nav || 0,
+                    invested_amount: (holding.units || 0) * (holding.nav || 0),
+                    current_value: holding.amount || 0
+                  });
+                }
+              }
+              
+              if (stockHoldings.length === 0 && mfHoldings.length === 0) {
                 console.log(`    ⚠️  No holdings found in PDF`);
               }
             } catch (pdfError: any) {
@@ -499,7 +512,7 @@ export async function scrapeMutualFunds() {
     console.error('  ✗ Gmail error:', error.message);
   }
 
-  return mutualFunds;
+  return { stocks, mutualFunds };
 }
 
 function extractAMC(fundName: string): string {

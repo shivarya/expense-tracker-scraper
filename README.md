@@ -62,6 +62,36 @@ npm run dev:cc       # Credit card statements only
 npm run dev:sms      # SMS transactions only
 ```
 
+### Credit Card Statements (Time-Filtered)
+
+Download statements for specific time periods:
+
+```bash
+# Fetch single PDF (POC mode)
+npm run fetch:cc:raw
+
+# Fetch all statements (default: last 1 year)
+npm run fetch:cc:raw:all
+
+# Time-filtered fetching
+npm run fetch:cc:3m        # Last 3 months
+npm run fetch:cc:6m        # Last 6 months
+npm run fetch:cc:1y        # Last 1 year (default)
+npm run fetch:cc:2y        # Last 2 years
+npm run fetch:cc:all-time  # All available statements
+
+# Manual time filter (custom)
+npx tsx src/transactions/extract-raw.ts --all --time=1m  # Last month
+```
+
+**Time Filter Options**:
+- `1m` - Last 1 month
+- `3m` - Last 3 months
+- `6m` - Last 6 months
+- `1y` - Last 1 year
+- `2y` - Last 2 years
+- `all` - All time (no filter)
+
 ### Or use arguments directly
 
 ```bash

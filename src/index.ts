@@ -58,8 +58,10 @@ async function main() {
     // 2. Download mutual fund statements from Gmail
     if (shouldRun.mutualFunds && process.env.SYNC_MUTUAL_FUNDS === 'true') {
       console.log('📈 Fetching mutual fund data...');
-      results.mutualFunds = await scrapeMutualFunds();
-      console.log(`✅ Found ${results.mutualFunds.length} mutual funds\n`);
+      const mfData = await scrapeMutualFunds();
+      results.stocks.push(...mfData.stocks);
+      results.mutualFunds = mfData.mutualFunds;
+      console.log(`✅ Found ${mfData.stocks.length} stocks and ${mfData.mutualFunds.length} mutual funds\n`);
     }
 
     // 2b. Download credit card statements from Gmail
