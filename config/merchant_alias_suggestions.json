@@ -1,0 +1,26 @@
+[
+  {
+    "raw": "MAKEMYTRIP COM",
+    "count": 3,
+    "suggestion": "MakeMyTrip",
+    "score": 0.2857142857142857
+  },
+  {
+    "raw": "ROLLA HYPER MARKET BANGALORE",
+    "count": 2,
+    "suggestion": "Rolla Hyper Market",
+    "score": 0.35714285714285715
+  },
+  {
+    "raw": "MC DONAL DS",
+    "count": 1,
+    "suggestion": "McDonald's",
+    "score": 0.2727272727272727
+  },
+  {
+    "raw": "AMAZON MUMBAI",
+    "count": 1,
+    "suggestion": "Amazon Pay",
+    "score": 0.38461538461538464
+  }
+]

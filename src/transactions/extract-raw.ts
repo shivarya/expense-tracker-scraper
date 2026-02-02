@@ -52,23 +52,54 @@ async function loadPasswords(): Promise<string[]> {
   }
 }
 
-async function decryptPDF(pdfPath: string, passwords: string[]): Promise<string> {
-  const decryptedPath = pdfPath.replace('.pdf', '_decrypted.pdf');
+async function decryptPDF(pdfPath: string, passwords: string[], decryptedDir: string): Promise<string> {
+  const filename = path.basename(pdfPath);
+  const decryptedPath = path.join(decryptedDir, filename.replace('.pdf', '_decrypted.pdf'));
   
-  for (const pwd of passwords) {
+  console.log(`  🔐 Trying ${passwords.length} password(s)...`);
+  
+  for (let i = 0; i < passwords.length; i++) {
+    const pwd = passwords[i];
+    
+    // Clean up any previous failed attempts
+    try {
+      await fs.unlink(decryptedPath);
+    } catch (e) {
+      // File doesn't exist, that's fine
+    }
+    
     try {
       await decrypt({ input: pdfPath, output: decryptedPath, password: pwd });
+    } catch (e: any) {
+      // Decrypt might throw error but still create the file
+      // So we check for file existence below
+    }
+    
+    // Check if file was created and has content (regardless of error)
+    try {
       const stat = await fs.stat(decryptedPath);
       if (stat.size > 0) {
-        console.log(`  ✓ Decrypted with password: ${pwd.substring(0, 4)}***`);
+        console.log(`  ✓ Decrypted with password #${i + 1}: ${pwd.substring(0, 4)}***`);
         return decryptedPath;
+      } else {
+        console.log(`  ⚠️  Password #${i + 1} created empty file`);
       }
-    } catch (e) {
-      // Try next password
+    } catch (statErr) {
+      // File wasn't created
+      console.log(`  ⚠️  Password #${i + 1} failed (no output)`);
     }
   }
   
-  return pdfPath;
+  // If decryption failed, try to copy as-is (might not be encrypted)
+  console.log(`  ℹ️  All passwords failed, attempting to copy PDF...`);
+  try {
+    await fs.copyFile(pdfPath, decryptedPath);
+    console.log(`  ℹ️  PDF copied (not encrypted or unknown password)`);
+    return decryptedPath;
+  } catch (e) {
+    console.log(`  ⚠️  Could not decrypt or copy PDF`);
+    return pdfPath;
+  }
 }
 
 async function searchStatementEmails(maxResults: number = 5, timeFilter: string = '') {
@@ -141,9 +172,11 @@ async function downloadPDFAttachment(messageId: string, outputDir: string) {
 
   const dataDir = path.join(__dirname, '../../data/raw-extracts');
   const pdfDir = path.join(dataDir, 'pdfs');
+  const decryptedDir = path.join(dataDir, 'decrypted');
   
   await fs.mkdir(dataDir, { recursive: true });
   await fs.mkdir(pdfDir, { recursive: true });
+  await fs.mkdir(decryptedDir, { recursive: true });
 
   const passwords = await loadPasswords();
   console.log(`🔑 Loaded ${passwords.length} password(s)\n`);
@@ -178,13 +211,14 @@ async function downloadPDFAttachment(messageId: string, outputDir: string) {
     if (attachment) {
       console.log(`📄 Downloaded: ${attachment.filename}`);
       
-      let decryptedPath: string | undefined;
+      let decryptedPath: string = attachment.path; // Default to original path
       
       // Decrypt if needed
       if (passwords.length > 0) {
         try {
-          decryptedPath = await decryptPDF(attachment.path, passwords);
-          if (decryptedPath !== attachment.path) {
+          const result = await decryptPDF(attachment.path, passwords, decryptedDir);
+          decryptedPath = result; // Use the result (either decrypted or copied)
+          if (result !== attachment.path) {
             console.log(`🔓 Decrypted successfully`);
           }
         } catch (e) {
@@ -195,7 +229,7 @@ async function downloadPDFAttachment(messageId: string, outputDir: string) {
       downloadedPDFs.push({
         filename: attachment.filename,
         pdfPath: attachment.path,
-        decryptedPath: decryptedPath || attachment.path,
+        decryptedPath: decryptedPath,
         messageId: attachment.messageId,
         downloadedAt: new Date().toISOString()
       });
@@ -212,12 +246,14 @@ async function downloadPDFAttachment(messageId: string, outputDir: string) {
   
   console.log(`\n✅ Downloaded and decrypted ${downloadedPDFs.length} PDF(s)`);
   console.log(`📄 Manifest saved to: ${manifestFile}`);
-  console.log(`\n📂 PDF Location: ${pdfDir}`);
+  console.log(`\n📂 Encrypted PDFs: ${pdfDir}`);
+  console.log(`📂 Decrypted PDFs: ${decryptedDir}`);
   console.log(`\n💡 Next Steps:`);
   console.log(`   1. Agent reads pdf-manifest.json`);
-  console.log(`   2. For each PDF, agent uses MarkItDown MCP tool:`);
+  console.log(`   2. For each PDF with decryptedPath, agent uses MarkItDown MCP tool:`);
   console.log(`      mcp_microsoft_mar_convert_to_markdown({ uri: "file:///{decryptedPath}" })`);
-  console.log(`   3. Agent extracts transactions from markdown`);
-  console.log(`   4. Agent saves to raw-transactions.json`);
-  console.log(`   5. Agent enriches and syncs`);
+  console.log(`   3. Agent extracts transactions from markdown tables`);
+  console.log(`   4. Agent enriches data (clean merchants, categorize, smart descriptions)`);
+  console.log(`   5. Agent saves to enriched-transactions.json`);
+  console.log(`   6. Run: npm run sync:cc:enriched`);
 })();

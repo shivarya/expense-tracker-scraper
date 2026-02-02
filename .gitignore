@@ -37,6 +37,9 @@ Thumbs.db
 data/sms-export.json
 data/sync-state.json
 data/mf-statements/*.pdf
+data/raw-extracts/pdfs/
+data/raw-extracts/decrypted/
+data/raw-extracts/*.json
 
 # Credentials & Tokens
 gmail-token.json

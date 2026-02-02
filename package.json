@@ -23,6 +23,11 @@
     "fetch:cc:1y": "tsx src/transactions/extract-raw.ts --all --time=1y",
     "fetch:cc:2y": "tsx src/transactions/extract-raw.ts --all --time=2y",
     "fetch:cc:all-time": "tsx src/transactions/extract-raw.ts --all --time=all",
+    "extract:cc:pdf-parse": "tsx src/transactions/extract-with-pdf-parse.ts",
+    "enrich:cc": "tsx src/transactions/enrich-and-categorize.ts",
+    "analyze:cc": "node scripts/compute-summary.mjs",
+    "merchant:report": "node scripts/generate-merchant-report.mjs",
+    "merchant:suggest": "node scripts/suggest-merchant-aliases.mjs",
     "sync:cc:enriched": "tsx src/transactions/sync-enriched.ts",
     "test:azure": "tsx src/test-azure.ts"
   },
