@@ -24,6 +24,7 @@
     "nps:extract": "tsx src/long-term/extract-nps.ts",
     "nps:enrich": "tsx src/long-term/enrich-nps.ts",
     "sync:nps": "tsx src/long-term/sync-nps.ts",
+    "sync:long-term": "npm run nps:check-mail && npm run nps:download && npm run nps:extract && npm run nps:enrich && npm run sync:nps",
     "fetch:cc:raw": "tsx src/transactions/extract-raw.ts",
     "fetch:cc:raw:all": "tsx src/transactions/extract-raw.ts --all",
     "fetch:cc:3m": "tsx src/transactions/extract-raw.ts --all --time=3m",
