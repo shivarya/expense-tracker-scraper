@@ -13,22 +13,30 @@ import open from 'open';
 
 const TOKEN_FILE = path.join(process.cwd(), 'gmail-token.json');
 
+const gmailClientId = process.env.GMAIL_CLIENT_ID || process.env.GOOGLE_CLIENT_ID;
+const gmailClientSecret = process.env.GMAIL_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET;
+const gmailRedirectUri = process.env.GMAIL_REDIRECT_URI || process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/oauth2callback';
+
 /**
  * Authenticate Gmail with OAuth2
  * Reuses existing token if valid, otherwise triggers browser flow
  */
 export async function authenticateGmail(): Promise<any> {
   const oauth2Client = new google.auth.OAuth2(
-    process.env.GMAIL_CLIENT_ID,
-    process.env.GMAIL_CLIENT_SECRET,
-    process.env.GMAIL_REDIRECT_URI || 'http://localhost:3000/oauth2callback'
+    gmailClientId,
+    gmailClientSecret,
+    gmailRedirectUri
   );
 
   console.log('📧 Gmail OAuth Config:', {
-    hasClientId: !!process.env.GMAIL_CLIENT_ID,
-    hasClientSecret: !!process.env.GMAIL_CLIENT_SECRET,
-    redirectUri: process.env.GMAIL_REDIRECT_URI || 'http://localhost:3000/oauth2callback'
+    hasClientId: !!gmailClientId,
+    hasClientSecret: !!gmailClientSecret,
+    redirectUri: gmailRedirectUri
   });
+
+  if (!gmailClientId || !gmailClientSecret) {
+    throw new Error('Missing Gmail OAuth config. Set GMAIL_CLIENT_ID/GMAIL_CLIENT_SECRET or GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET in .env');
+  }
 
   // Try to load existing token
   try {
@@ -124,4 +132,16 @@ export async function authenticateGmail(): Promise<any> {
 export async function getGmailClient() {
   const auth = await authenticateGmail();
   return google.gmail({ version: 'v1', auth });
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  authenticateGmail()
+    .then(() => {
+      console.log(`  ✓ Token saved to: ${TOKEN_FILE}`);
+      process.exit(0);
+    })
+    .catch((error: any) => {
+      console.error('  ✗ Gmail auth failed:', error.message || error);
+      process.exit(1);
+    });
 }
