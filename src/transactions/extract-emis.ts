@@ -51,6 +51,17 @@ interface EMIPlan {
   last_installment_date?: string;
 }
 
+interface EMIInstallmentRecord {
+  date: string;
+  merchant: string;
+  installment: number;
+  total: number;
+  principal: number;
+  interest: number;
+  gst: number;
+  txIndex: number;
+}
+
 function extractCardInfo(filename: string): { bank: string; last4: string } {
   // Extract card info from filename
   // Examples: "6529XXXXXXXX7003_...", "4315XXXXXXXX2003_...", "xxxx-xxxx-xx-xxxx89_..."
@@ -136,51 +147,59 @@ async function extractEMIs() {
     
     console.log(`\n📄 Processing: ${extraction.filename}`);
     
-    // Group EMI-related transactions
-    let currentEMI: {
-      date: string;
-      merchant: string;
-      installment: number;
-      total: number;
-      principal: number;
-      interest: number;
-      gst: number;
-    } | null = null;
-    
+    // Build installment-level EMI records first (interest/gst/principal may appear in any order)
+    const installmentRecords = new Map<string, EMIInstallmentRecord>();
+
     for (let i = 0; i < transactions.length; i++) {
       const tx = transactions[i];
       const parsed = parseEMITransaction(tx.description);
-      
-      if (parsed.type === 'principal' && parsed.merchant) {
-        // Start of new EMI installment
-        if (currentEMI) {
-          // Save previous EMI
-          addEMIInstallment(emiPlans, currentEMI, cardInfo);
+
+      if ((parsed.type === 'interest' || parsed.type === 'principal') && parsed.merchant && parsed.installment && parsed.total) {
+        const recordKey = `${tx.date}|${parsed.merchant}|${parsed.installment}/${parsed.total}`;
+
+        if (!installmentRecords.has(recordKey)) {
+          installmentRecords.set(recordKey, {
+            date: tx.date,
+            merchant: parsed.merchant,
+            installment: parsed.installment,
+            total: parsed.total,
+            principal: 0,
+            interest: 0,
+            gst: 0,
+            txIndex: i
+          });
         }
-        
-        currentEMI = {
-          date: tx.date,
-          merchant: parsed.merchant,
-          installment: parsed.installment!,
-          total: parsed.total!,
-          principal: tx.amount,
-          interest: 0,
-          gst: 0
-        };
-      } else if (parsed.type === 'interest' && currentEMI) {
-        currentEMI.interest = tx.amount;
-      } else if (parsed.type === 'gst' && currentEMI) {
-        currentEMI.gst = tx.amount;
-        
-        // GST is usually the last component, save the EMI
-        addEMIInstallment(emiPlans, currentEMI, cardInfo);
-        currentEMI = null;
+
+        const record = installmentRecords.get(recordKey)!;
+        record.txIndex = i;
+
+        if (parsed.type === 'interest') {
+          record.interest += tx.amount;
+        } else {
+          record.principal += tx.amount;
+        }
+      } else if (parsed.type === 'gst') {
+        // IGST rows don't include merchant/installment token; assign to nearest EMI record on same date.
+        const sameDateCandidates = Array.from(installmentRecords.values())
+          .filter(r => r.date === tx.date && r.gst === 0)
+          .sort((a, b) => Math.abs(a.txIndex - i) - Math.abs(b.txIndex - i));
+
+        if (sameDateCandidates.length > 0) {
+          sameDateCandidates[0].gst = tx.amount;
+        }
       }
     }
-    
-    // Handle any remaining EMI
-    if (currentEMI) {
-      addEMIInstallment(emiPlans, currentEMI, cardInfo);
+
+    for (const emiRecord of installmentRecords.values()) {
+      addEMIInstallment(emiPlans, {
+        date: emiRecord.date,
+        merchant: emiRecord.merchant,
+        installment: emiRecord.installment,
+        total: emiRecord.total,
+        principal: emiRecord.principal,
+        interest: emiRecord.interest,
+        gst: emiRecord.gst
+      }, cardInfo);
     }
   }
   
@@ -192,15 +211,20 @@ async function extractEMIs() {
     plan.total_gst = plan.installments.reduce((sum, inst) => sum + inst.gst, 0);
     plan.total_amount = plan.amount_financed + plan.total_interest + plan.total_gst;
     
-    // Calculate average EMI
+    // Calculate average EMI from observed installments
     plan.monthly_emi = plan.installments.length > 0 
       ? plan.installments.reduce((sum, inst) => sum + inst.total_amount, 0) / plan.installments.length
       : 0;
+
+    const maxInstallmentSeen = plan.installments.reduce((max, inst) => Math.max(max, inst.installment_number), 0);
+    plan.installments_paid = maxInstallmentSeen;
+    plan.remaining_installments = Math.max(0, plan.total_installments - plan.installments_paid);
     
     // Determine status
-    plan.status = plan.installments_paid >= plan.total_installments ? 'completed' : 'active';
+    plan.status = plan.remaining_installments === 0 ? 'completed' : 'active';
     
     // Set dates
+    plan.installments.sort((a, b) => parseIndianDate(a.date).getTime() - parseIndianDate(b.date).getTime());
     plan.first_installment_date = plan.installments[0]?.date;
     plan.last_installment_date = plan.installments[plan.installments.length - 1]?.date;
     
@@ -252,8 +276,38 @@ function addEMIInstallment(
   emiData: { date: string; merchant: string; installment: number; total: number; principal: number; interest: number; gst: number },
   cardInfo: { bank: string; last4: string }
 ) {
-  const key = `${cardInfo.last4}_${emiData.merchant}`;
-  
+  const baseKey = `${cardInfo.last4}_${emiData.merchant}_${emiData.total}`;
+
+  // Support multiple concurrent EMI plans for same merchant+card+tenure.
+  const candidateKeys = Array.from(emiPlans.keys()).filter(k => k.startsWith(`${baseKey}_`));
+  const emiDate = parseIndianDate(emiData.date);
+  let keyToUse: string | null = null;
+
+  for (const candidateKey of candidateKeys) {
+    const plan = emiPlans.get(candidateKey)!;
+    const maxInstallmentSeen = plan.installments.reduce((max, inst) => Math.max(max, inst.installment_number), 0);
+    const lastDate = plan.installments.length > 0
+      ? parseIndianDate(plan.installments[plan.installments.length - 1].date)
+      : null;
+    const dateGap = lastDate ? Math.abs(daysBetween(lastDate, emiDate)) : 999;
+
+    const canAppend =
+      emiData.installment > maxInstallmentSeen &&
+      dateGap >= 20;
+
+    if (canAppend) {
+      keyToUse = candidateKey;
+      break;
+    }
+  }
+
+  if (!keyToUse) {
+    const nextSequence = candidateKeys.length + 1;
+    keyToUse = `${baseKey}_${nextSequence}`;
+  }
+
+  const key = keyToUse;
+
   if (!emiPlans.has(key)) {
     emiPlans.set(key, {
       merchant: emiData.merchant,
@@ -265,7 +319,7 @@ function addEMIInstallment(
       total_gst: 0,
       total_amount: 0,
       monthly_emi: 0,
-      installments_paid: 0,
+      installments_paid: emiData.installment,
       remaining_installments: emiData.total,
       installments: [],
       status: 'active',
@@ -284,9 +338,20 @@ function addEMIInstallment(
     gst: emiData.gst,
     total_amount: emiData.principal + emiData.interest + emiData.gst
   });
-  
-  plan.installments_paid = plan.installments.length;
-  plan.remaining_installments = plan.total_installments - plan.installments_paid;
+
+  plan.installments.sort((a, b) => parseIndianDate(a.date).getTime() - parseIndianDate(b.date).getTime());
+  plan.installments_paid = plan.installments.reduce((max, inst) => Math.max(max, inst.installment_number), 0);
+  plan.remaining_installments = Math.max(0, plan.total_installments - plan.installments_paid);
+}
+
+function parseIndianDate(dateStr: string): Date {
+  const [day, month, year] = dateStr.split('/').map(n => parseInt(n, 10));
+  return new Date(year, month - 1, day);
+}
+
+function daysBetween(a: Date, b: Date): number {
+  const ms = Math.abs(a.getTime() - b.getTime());
+  return Math.floor(ms / (1000 * 60 * 60 * 24));
 }
 
 // Run extraction
