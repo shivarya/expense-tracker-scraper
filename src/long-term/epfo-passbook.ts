@@ -64,16 +64,17 @@ async function promptSecret(question: string) {
     output: process.stdout
   });
 
+  const rlAny = rl as any;
   return new Promise<string>((resolve) => {
-    rl.output.write(`${question}`);
-    const originalWrite = (rl as any)._writeToOutput;
-    (rl as any)._writeToOutput = function _writeToOutput() {
-      rl.output.write('*');
+    rlAny.output.write(`${question}`);
+    const originalWrite = rlAny._writeToOutput;
+    rlAny._writeToOutput = function _writeToOutput() {
+      rlAny.output.write('*');
     };
 
     rl.question('', (answer) => {
-      (rl as any)._writeToOutput = originalWrite;
-      rl.output.write('\n');
+      rlAny._writeToOutput = originalWrite;
+      rlAny.output.write('\n');
       rl.close();
       resolve(answer.trim());
     });
@@ -193,9 +194,9 @@ async function getCredentials(showPassword: boolean = false) {
 
 async function launchInteractiveBrowser() {
   const launchOptions = {
-    headless: false,
+    headless: false as boolean,
     args: ['--start-maximized']
-  } as const;
+  };
 
   try {
     console.log('🌐 Launching Chrome window...');

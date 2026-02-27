@@ -114,6 +114,22 @@ async function loadStocksItems() {
 }
 
 async function loadMutualFundItems() {
+  // Try MF Central enriched data first, fallback to CDSL
+  const mfcPath = path.join(__dirname, '../../data/enriched-mfcentral.json');
+  const mfcData = await readJson<any>(mfcPath);
+  if (mfcData?.funds && Array.isArray(mfcData.funds) && mfcData.funds.length > 0) {
+    const items = mfcData.funds.map((mf: any) => ({
+      folio: mf.folio_number,
+      folio_number: mf.folio_number,
+      fund_name: mf.fund_name,
+      amc: mf.amc,
+      units: mf.units,
+      amount: mf.current_value
+    }));
+    return { items, source: mfcPath };
+  }
+
+  // Fallback to CDSL
   const filePath = path.join(__dirname, '../../data/enriched-cdsl.json');
   const data = await readJson<any>(filePath);
   if (!data?.mutualFunds || !Array.isArray(data.mutualFunds)) {
