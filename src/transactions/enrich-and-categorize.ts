@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import crypto from 'crypto'
+import { aiCategorizeTransactions, type TxInput, CANONICAL_NAMES } from '../utils/aiCategorize.js'
 
 type RawTx = {
   date: string
@@ -20,6 +21,7 @@ type EnrichedTx = {
   merchant_canonical?: string
   description: string
   category: string
+  category_id: number
   payment_method: string
   source: string
   transaction_hash: string
@@ -106,28 +108,7 @@ function isRecurring(raw: string): boolean {
   return /SUBSCRIPTION|NETFLIX|SPOTIFY|GITHUB|PREMIUM|INSURANCE/i.test(raw)
 }
 
-function categorize(raw: string): { merchant: string; category: string; purpose: string; confidence: 'High'|'Medium'|'Low'; merchantCategory?: string; location?: string } {
-  const r = raw.toUpperCase()
-  const merchant = cleanMerchant(raw)
-  const location = extractLocation(raw)
-  
-  // Patterns
-  if (/SWIGG|SWIGGY/.test(r)) return { merchant: 'Swiggy', category: 'Food & Dining', purpose: 'Food Delivery', confidence: 'High', merchantCategory: 'food_delivery', location }
-  if (/BLINKIT|MILK|GROCERY|SUPERMARKET|ADISHWAR|MILKBASET|MILKBASKET/.test(r)) return { merchant: merchant, category: 'Groceries', purpose: 'Grocery Shopping', confidence: 'High', merchantCategory: 'grocery', location }
-  if (/MAKEMYTRIP|CLEARTRIP|INDIGO|IRCTC|BOOKMYSHOW|YOM|MAKEMYTRIP COM|MAKE MY TRIP/.test(r)) return { merchant: merchant, category: 'Travel', purpose: 'Travel Booking', confidence: 'High', merchantCategory: 'travel_booking', location }
-  if (/AMAZON|FLIPCART|AJIO|MYNTRA|THEHOME|THELUXURY|CART|LUGGAGE/.test(r)) return { merchant: merchant, category: 'Shopping', purpose: 'Online Shopping', confidence: 'High', merchantCategory: 'retail_shopping', location }
-  if (/HOTEL|RESORT|DAIWI|DAIWIK|GRAND|HOSPITALITY/.test(r)) return { merchant: merchant, category: 'Travel', purpose: 'Hotel Stay', confidence: 'High', merchantCategory: 'hotel', location }
-  if (/MC DONAL|MCDONALD|DOMINOS|PIZZA|ZOMATO|DUNKIN|RESTAURANT|CAFE|TANDOORI/.test(r)) return { merchant: merchant, category: 'Food & Dining', purpose: 'Dining Out', confidence: 'High', merchantCategory: 'restaurant', location }
-  if (/PHARMACY|MEDICAL|MEDICALS|DRUGS|APOTHEC|PHARMA/.test(r)) return { merchant: merchant, category: 'Healthcare', purpose: 'Medical Purchase', confidence: 'High', merchantCategory: 'pharmacy', location }
-  if (/POLICYBAZAAR|INSURANC|PREMIUM/.test(r)) return { merchant: merchant, category: 'Bills & Utilities', purpose: 'Insurance Premium', confidence: 'High', merchantCategory: 'insurance', location }
-  if (/GITHUB|MICROSOFT|ADOBE|SUBSCRIPTION|NETFLIX|SPOTIFY|HOTSTAR|PRIMEVIDEO/.test(r)) return { merchant: merchant, category: 'Entertainment', purpose: 'Subscription Service', confidence: 'High', merchantCategory: 'subscription', location }
-  if (/URBANCLAP|URBAN CLAP/.test(r)) return { merchant: 'UrbanClap', category: 'Services', purpose: 'Home Services', confidence: 'High', merchantCategory: 'home_services', location }
-  if (/UPI-\d+-/.test(raw)) {
-    const m = raw.match(/UPI-\d+-([A-Z0-9 \-\\.]+)/i)
-    if (m) return { merchant: cleanMerchant(m[1]), category: 'Miscellaneous', purpose: 'UPI Payment', confidence: 'Medium', merchantCategory: 'upi_payment', location }
-  }
-  return { merchant: merchant, category: 'Other', purpose: 'Other Transaction', confidence: 'Low', merchantCategory: 'other', location }
-}
+// categorize() removed — AI categorization is used instead (see aiCategorize.ts)
 
 function toISO(dateStr: string) {
   // pdf-parse dates typically DD/MM/YYYY
@@ -159,6 +140,20 @@ async function main() {
   const merchantTotals: Record<string, number> = {}
   const cards: Array<{ filename: string; bank: string; card_type: string; card_last4: string }> = []
 
+  // ── AI pre-pass: collect all transactions and categorize in one shot ────────
+  console.log('🤖 Running AI categorization...')
+  const allTxInputs: TxInput[] = []
+  for (const file of raw.extractions || []) {
+    for (const t of file.transactions as RawTx[]) {
+      allTxInputs.push({ index: allTxInputs.length, raw: t.description, amount: t.amount, type: t.type })
+    }
+  }
+  const aiResults = await aiCategorizeTransactions(allTxInputs)
+  const aiResultMap = new Map<number, (typeof aiResults)[number]>(aiResults.map(r => [r.index, r]))
+  let globalTxIndex = 0
+  console.log(`✅ AI categorized ${aiResults.length} transactions\n`)
+  // ───────────────────────────────────────────────────────────────────────────
+
   for (const file of raw.extractions || []) {
     // Extract card info from filename
     const cardMatch = file.filename.match(/(\d{4}).*?(\w+)_NORM/) || file.filename.match(/xxxx-xxxx-xx-xxxx(\d{2})/)
@@ -172,18 +167,25 @@ async function main() {
     cards.push({ filename: file.filename, bank, card_type: cardType, card_last4: cardLast4 })
     
     for (const t of file.transactions as RawTx[]) {
-      const cat = categorize(t.description)
-      const canonical = normalizeMerchantName(cat.merchant)
+      const ai = aiResultMap.get(globalTxIndex++) ?? {
+        index: globalTxIndex - 1,
+        category_id: t.type === 'credit' ? 16 : 51,
+        category: t.type === 'credit' ? CANONICAL_NAMES[16] : CANONICAL_NAMES[51],
+        merchant: cleanMerchant(t.description),
+        description: 'Transaction',
+      }
+      const canonical = normalizeMerchantName(ai.merchant)
       const txPartial: Omit<EnrichedTx, 'transaction_hash' | 'source_data'> = {
         date: toISO(t.date),
         raw_text: t.description,
         amount: t.amount,
         original_type: t.type,
         transaction_type: t.type === 'debit' ? 'expense' : 'credit',
-        merchant: cat.merchant,
+        merchant: ai.merchant,
         merchant_canonical: canonical,
-        description: `${cat.purpose} at ${canonical}`,
-        category: cat.category,
+        description: ai.description,
+        category: ai.category,
+        category_id: ai.category_id,
         payment_method: `${bank} Card *${cardLast4}`,
         source: 'web_scrape'
       }
@@ -191,23 +193,20 @@ async function main() {
       const hash = crypto.createHash('sha256').update(`${txPartial.date}|${txPartial.amount}|${canonical}|${t.description}`).digest('hex')
 
       const tx: EnrichedTx = Object.assign({}, txPartial, { transaction_hash: hash, source_data: {
-        merchant_category: cat.merchantCategory,
         is_emi: isEMI(t.description),
         // will set is_recurring later based on counts
         is_recurring: false,
-        location: cat.location,
         raw_description: t.description,
-        purpose: cat.purpose,
-        categoryConfidence: cat.confidence,
-        categoryConfidenceScore: cat.confidence === 'High' ? 0.9 : cat.confidence === 'Medium' ? 0.65 : 0.4
+        categoryConfidence: 'High',
+        categoryConfidenceScore: 0.9
       }})
 
       enriched.push(tx)
       
       // Track totals & counts
       if (t.type === 'debit') {
-        categoryTotals[cat.category] = (categoryTotals[cat.category] || 0) + t.amount
-        merchantTotals[cat.merchant] = (merchantTotals[cat.merchant] || 0) + t.amount
+        categoryTotals[ai.category] = (categoryTotals[ai.category] || 0) + t.amount
+        merchantTotals[ai.merchant] = (merchantTotals[ai.merchant] || 0) + t.amount
       }
     }
   }

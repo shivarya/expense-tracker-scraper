@@ -51,6 +51,7 @@ async function syncEnrichedTransactions() {
     description?: string;
     date: string;
     category?: string;
+    category_id?: number;
     source?: string;
     payment_method?: string;
     source_data?: any;
@@ -72,6 +73,7 @@ async function syncEnrichedTransactions() {
     description?: string;
     date: string;
     category?: string;
+    category_id?: number;
     reference_number: string;
     source?: string;
     payment_method?: string;
@@ -89,6 +91,7 @@ async function syncEnrichedTransactions() {
     description: txn.description,
     date: txn.date,
     category: txn.category,
+    category_id: txn.category_id,
     reference_number: `CC_${typedData.metadata.card_last4}_${txn.date}_${txn.amount}`,
     source: txn.source,
     payment_method: txn.payment_method,
