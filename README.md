@@ -101,6 +101,45 @@ npm run dev cc       # Credit card statements only
 npm run dev sms      # SMS transactions only
 ```
 
+### HDFC Fixed Deposits (Playwright + OTP)
+
+```bash
+# First-time setup: save encrypted PAN + DOB + browser session state
+npm run fd:setup
+
+# Alias for setup (kept for compatibility)
+npm run fd:setup:visible
+
+# Fetch latest FD statement (PDF first, table snapshot fallback)
+npm run fd:fetch
+
+# Extract raw FD rows (AI-assisted from PDF/snapshot)
+npm run fd:extract
+
+# Enrich + normalize (active FDs only)
+npm run fd:enrich
+
+# Sync to backend /sync/fixed-deposits
+npm run sync:fd
+
+# Full pipeline
+npm run sync:fd:full
+
+# Remove stored credentials/session
+npm run fd:forget-creds
+```
+
+Generated files:
+- `data/hdfc-fd-statement.json`
+- `data/raw-extracts/hdfc-fd-pdfs/*.pdf` (if download available)
+- `data/raw-extracts/hdfc-fd-table-snapshot.json` (fallback)
+- `data/hdfc-fd-raw.json`
+- `data/enriched-hdfc-fd.json`
+
+Environment helpers:
+- `HDFC_FD_PAN`
+- `HDFC_FD_DOB` (`DD-MM-YYYY`)
+
 ## SMS Export
 
 ### From Android Device
