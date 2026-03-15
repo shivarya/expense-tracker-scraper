@@ -117,7 +117,8 @@ async function syncEnrichedTransactions() {
 
     console.log('\n✅ Sync successful!');
     console.log(`   Created: ${response.data.data?.created || 0}`);
-    console.log(`   Duplicates Skipped: ${response.data.data?.duplicates || 0}`);
+    console.log(`   Duplicates Skipped: ${response.data.data?.skipped_duplicates || response.data.data?.skipped || 0}`);
+    console.log(`   Possible Duplicates Flagged: ${response.data.data?.flagged_possible_duplicates || 0}`);
     console.log(`   Failed: ${response.data.data?.failed || 0}`);
 
     if (response.data.data?.errors && response.data.data.errors.length > 0) {
