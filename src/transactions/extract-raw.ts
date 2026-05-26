@@ -106,8 +106,9 @@ async function searchStatementEmails(maxResults: number = 5, timeFilter: string 
   const gmail = await getGmailClient();
   
   // Combined query for both banks
-  // Note: ICICI uses credit_cards@ (underscore), not credit-cards@ (hyphen)
-  let query = '{from:credit_cards@icicibank.com OR from:statements@rbl.bank.in} subject:statement has:attachment filename:pdf';
+  // Note: ICICI changed sender domain from icicibank.com → icici.bank.in starting Apr 2026
+  // Using subject match as fallback to catch both old and new sender addresses
+  let query = '{from:credit_cards@icicibank.com OR from:credit_cards@icici.bank.in OR from:statements@rbl.bank.in} subject:statement has:attachment';
   
   // Add time filter if specified
   if (timeFilter) {

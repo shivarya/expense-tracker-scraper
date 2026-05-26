@@ -9,7 +9,8 @@ export const fromSenders = [
 export const creditCardSenders = [
     'statements@hdfcbank.net',
     'statements@rbl.bank.in',
-    'credit_cards@icicibank.com',
+    'credit_cards@icicibank.com',   // old sender (pre-Mar 2026)
+    'credit_cards@icici.bank.in',   // new sender (Apr 2026 onwards)
     'creditcardservices@sbicard.com',
     'statements@axisbank.com',
     'statements@kotak.com',

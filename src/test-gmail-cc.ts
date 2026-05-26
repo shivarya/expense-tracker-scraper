@@ -13,11 +13,16 @@ async function testGmailSearch() {
 
     // Test different search queries
     const queries = [
-      'from:credit-cards@icicibank.com',
-      'from:credit-cards@icicibank.com subject:statement',
-      'from:credit-cards@icicibank.com has:attachment',
-      'from:credit-cards@icicibank.com filename:pdf',
-      'from:icicibank.com subject:statement',
+      // Old ICICI sender
+      'from:credit_cards@icicibank.com subject:statement',
+      'from:credit_cards@icicibank.com has:attachment filename:pdf',
+      // New ICICI sender (user-reported updated domain)
+      'from:credit_cards@icici.bank.in subject:statement',
+      'from:credit_cards@icici.bank.in has:attachment',
+      'from:icici.bank.in subject:statement has:attachment',
+      // Subject-based fallback (catches both old and new)
+      'subject:"ICICI Bank Credit Card Statement" has:attachment newer_than:6m',
+      'subject:"ICICI Bank Credit Card Statement" newer_than:6m',
     ];
 
     for (const query of queries) {
@@ -54,12 +59,12 @@ async function testGmailSearch() {
       }
     }
 
-    // Also check recent emails from ICICI
-    console.log('\n📋 Recent emails from ICICI (any subject):');
+    // Also check recent emails from both ICICI domains
+    console.log('\n📋 Recent emails from ICICI (both domains):');
     const recentICICI = await gmail.users.messages.list({
       userId: 'me',
-      q: 'from:icicibank.com',
-      maxResults: 10,
+      q: '{from:icicibank.com OR from:icici.bank.in} newer_than:6m',
+      maxResults: 15,
     });
 
     if (recentICICI.data.messages) {

@@ -110,13 +110,24 @@ function isRecurring(raw: string): boolean {
 
 // categorize() removed — AI categorization is used instead (see aiCategorize.ts)
 
+const MONTH_MAP: Record<string, string> = {
+  jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+  jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
+}
+
 function toISO(dateStr: string) {
-  // pdf-parse dates typically DD/MM/YYYY
-  const m = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})/)
-  if (m) return `${m[3]}-${m[2]}-${m[1]}`
-  // try DD-MM-YYYY
-  const n = dateStr.match(/(\d{2})-(\d{2})-(\d{4})/)
-  if (n) return `${n[3]}-${n[2]}-${n[1]}`
+  // DD/MM/YYYY (ICICI style)
+  const m = dateStr.match(/(\d{1,2})\/(\d{2})\/(\d{4})/)
+  if (m) return `${m[3]}-${m[2]}-${m[1].padStart(2, '0')}`
+  // DD-MM-YYYY
+  const n = dateStr.match(/(\d{1,2})-(\d{2})-(\d{4})/)
+  if (n) return `${n[3]}-${n[2]}-${n[1].padStart(2, '0')}`
+  // DD Mon YYYY (RBL style: "21 Apr 2026", "6 Mar 2026")
+  const p = dateStr.match(/(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})/)
+  if (p) {
+    const mm = MONTH_MAP[p[2].toLowerCase()]
+    if (mm) return `${p[3]}-${mm}-${p[1].padStart(2, '0')}`
+  }
   return dateStr
 }
 
