@@ -23,6 +23,12 @@ type EnrichedTx = {
   category: string
   category_id: number
   payment_method: string
+  // Owning card identity — stamped per source PDF so a multi-card batch never
+  // collapses onto a single card during sync (see metadata note below).
+  bank: string
+  card_last4: string
+  card_type: string
+  statement_period?: string
   source: string
   transaction_hash: string
   source_data: {
@@ -34,6 +40,10 @@ type EnrichedTx = {
     purpose?: string
     categoryConfidence?: string
     categoryConfidenceScore?: number
+    bank?: string
+    card_last4?: string
+    card_type?: string
+    statement_period?: string
   }
 }
 
@@ -176,7 +186,15 @@ async function main() {
                  file.filename.includes('xxxx-xxxx') ? 'RBL Bank' : 'Bank'
     // record card info
     cards.push({ filename: file.filename, bank, card_type: cardType, card_last4: cardLast4 })
-    
+
+    // Per-file statement period so each card keeps its own window. The batch-level
+    // metadata below intentionally describes only the primary card and must NOT be
+    // used to attribute individual transactions to an account.
+    const fileDates = (file.transactions as RawTx[]).map(t => toISO(t.date)).filter(Boolean)
+    const fileMinDate = fileDates.length ? fileDates.reduce((a, b) => (a < b ? a : b)) : undefined
+    const fileMaxDate = fileDates.length ? fileDates.reduce((a, b) => (a > b ? a : b)) : undefined
+    const fileStatementPeriod = fileMinDate && fileMaxDate ? `${fileMinDate} to ${fileMaxDate}` : undefined
+
     for (const t of file.transactions as RawTx[]) {
       const ai = aiResultMap.get(globalTxIndex++) ?? {
         index: globalTxIndex - 1,
@@ -198,6 +216,10 @@ async function main() {
         category: ai.category,
         category_id: ai.category_id,
         payment_method: `${bank} Card *${cardLast4}`,
+        bank,
+        card_last4: cardLast4,
+        card_type: cardType,
+        statement_period: fileStatementPeriod,
         source: 'web_scrape'
       }
 
@@ -209,7 +231,13 @@ async function main() {
         is_recurring: false,
         raw_description: t.description,
         categoryConfidence: 'High',
-        categoryConfidenceScore: 0.9
+        categoryConfidenceScore: 0.9,
+        // Carry the owning card on every row so the sync step resolves the
+        // correct account per-transaction, not from the batch's first card.
+        bank,
+        card_last4: cardLast4,
+        card_type: cardType,
+        statement_period: fileStatementPeriod
       }})
 
       enriched.push(tx)
@@ -239,6 +267,10 @@ async function main() {
   const maxDate = dates.length ? dates.reduce((a,b)=> a > b ? a : b) : undefined
   const statement_period = minDate && maxDate ? `${minDate} to ${maxDate}` : undefined
 
+  // NOTE: `primaryCard` describes only the first PDF in the batch. It feeds the
+  // summary metadata for display/back-compat, but sync MUST use each transaction's
+  // own bank/card_last4 (stamped above) — collapsing onto this primary card is what
+  // caused one card's statement lines to be re-filed under another card's account.
   const primaryCard = cards.length ? cards[0] : { filename: '', bank: '', card_type: '', card_last4: 'XXXX' }
 
   // Compute analysis summary

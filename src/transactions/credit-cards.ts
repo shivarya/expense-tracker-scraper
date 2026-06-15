@@ -30,6 +30,39 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Currency codes that may appear in a foreign-transaction statement line.
+// Closed list so country codes (e.g. "MYS") and other noise never match.
+const KNOWN_FOREIGN_CURRENCIES = [
+  'MYR','USD','EUR','GBP','AED','THB','SGD','JPY','AUD','CAD','CHF','HKD',
+  'IDR','VND','LKR','NPR','SAR','QAR','OMR','BHD','KWD','CNY','KRW','NZD',
+  'ZAR','TRY','PHP','TWD','MVR','BDT','EGP',
+];
+
+/**
+ * Pull the original foreign-currency figure out of a card-statement line such as
+ * "IBIS KLCC-F&B KUALA LUMPUR MYS( MYR 5.80 )" or "U MOBILE ... 22 MYR".
+ * The statement `amount` is already INR (the bank converts) — this is only for
+ * display/provenance. Returns null for domestic INR transactions.
+ */
+function extractForeignAmount(text: string | undefined): { amount: number; currency: string } | null {
+  if (!text) return null;
+  for (const code of KNOWN_FOREIGN_CURRENCIES) {
+    // CODE before the number: "MYR 5.80"
+    let m = text.match(new RegExp(`\\b${code}\\s*([0-9][0-9,]*(?:\\.[0-9]+)?)`));
+    if (m) {
+      const amt = parseFloat(m[1].replace(/,/g, ''));
+      if (amt > 0) return { amount: Math.round(amt * 100) / 100, currency: code };
+    }
+    // number before CODE: "22 MYR"
+    m = text.match(new RegExp(`([0-9][0-9,]*(?:\\.[0-9]+)?)\\s*${code}\\b`));
+    if (m) {
+      const amt = parseFloat(m[1].replace(/,/g, ''));
+      if (amt > 0) return { amount: Math.round(amt * 100) / 100, currency: code };
+    }
+  }
+  return null;
+}
+
 async function loadPasswords(): Promise<string[]> {
   try {
     const pwdFile = path.join(__dirname, '../config/pdf-passwords.json');
@@ -719,7 +752,33 @@ async function syncToServer(statements: StatementData[]): Promise<void> {
       
       cardGroups.get(cardKey)!.push(...statement.transactions);
     }
-    
+
+    // Regression guard: a single statement's lines must never be attributed to two
+    // different card accounts. If the same (date, amount, description) fingerprint
+    // appears under more than one cardKey, the card identity was mis-detected for one
+    // of the overlapping statements — keep the first owner and drop the rest so the
+    // same transaction is never synced under two cards.
+    const fingerprintOwner = new Map<string, string>();
+    let crossCardDropped = 0;
+    for (const [cardKey, txns] of cardGroups) {
+      const kept: CreditCardTransaction[] = [];
+      for (const txn of txns) {
+        const fingerprint = `${txn.date}|${txn.amount.toFixed(2)}|${txn.type}|${(txn.description || '').trim().toLowerCase()}`;
+        const owner = fingerprintOwner.get(fingerprint);
+        if (owner && owner !== cardKey) {
+          crossCardDropped++;
+          console.warn(`  ⚠️  Cross-card duplicate skipped: "${txn.description}" (${txn.date}, ₹${txn.amount}) already attributed to ${owner}; not syncing under ${cardKey}`);
+          continue;
+        }
+        if (!owner) fingerprintOwner.set(fingerprint, cardKey);
+        kept.push(txn);
+      }
+      cardGroups.set(cardKey, kept);
+    }
+    if (crossCardDropped > 0) {
+      console.warn(`\n  ⚠️  Dropped ${crossCardDropped} cross-card duplicate transaction(s) — check card-identity detection for overlapping statements.`);
+    }
+
     let totalSynced = 0;
     
     // Sync each card's transactions
@@ -740,15 +799,22 @@ async function syncToServer(statements: StatementData[]): Promise<void> {
           transactions: enrichedTransactions.map(txn => {
             const txnDate = new Date(txn.date);
             const useSmartDescription = txnDate >= oneMonthAgo;
-            
+
+            // Card statements bill in INR (amount already converted). Preserve the
+            // original foreign figure for display when the line carries one.
+            const foreign = extractForeignAmount(txn.description);
+
             return {
               bank: metadata.bankName,
               account_number: metadata.cardNumber,
               transaction_type: txn.type === 'debit' ? 'expense' : 'income',
               amount: txn.amount,
+              currency: 'INR',
+              original_amount: foreign?.amount,
+              original_currency: foreign?.currency,
               merchant: txn.merchantName || cleanMerchantName(txn.description),
-              description: useSmartDescription 
-                ? generateSmartDescription(txn, metadata) 
+              description: useSmartDescription
+                ? generateSmartDescription(txn, metadata)
                 : cleanDescription(txn.description),
               date: txn.date,
               category: txn.transactionCategory || 'Other',

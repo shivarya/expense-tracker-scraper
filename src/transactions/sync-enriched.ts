@@ -164,6 +164,12 @@ async function syncEnrichedTransactions() {
     category_id?: number;
     source?: string;
     payment_method?: string;
+    // Per-transaction card identity (stamped by enrich-and-categorize). Authoritative
+    // for account resolution — never fall back to the batch's primary card silently.
+    bank?: string;
+    card_last4?: string;
+    card_type?: string;
+    statement_period?: string;
     source_data?: any;
     [key: string]: any;
   }
@@ -192,18 +198,65 @@ async function syncEnrichedTransactions() {
 
   const typedData = data as EnrichedData;
 
-  const transactionsForSync: TransactionForSync[] = typedData.transactions.map((txn: EnrichedTransaction) => {
+  // Resolve each transaction's OWN card identity. Historically every row was forced
+  // onto metadata.card_last4 (the first card in a multi-card batch), which attributed
+  // one card's statement lines to another card's account. Prefer the per-transaction
+  // identity stamped during enrichment, then source_data, and only then metadata.
+  const resolveCardIdentity = (txn: EnrichedTransaction): { bank: string; cardLast4: string; ownIdentity: boolean } => {
+    const ownCardLast4 = txn.card_last4 ?? txn.source_data?.card_last4;
+    const ownBank = txn.bank ?? txn.source_data?.bank;
+    return {
+      bank: String(ownBank ?? typedData.metadata.bank ?? '').trim(),
+      cardLast4: String(ownCardLast4 ?? typedData.metadata.card_last4 ?? '').trim(),
+      ownIdentity: ownCardLast4 != null && String(ownCardLast4).trim() !== '',
+    };
+  };
+
+  const identities = typedData.transactions.map(resolveCardIdentity);
+
+  // Regression guard: refuse to sync if any row lacks a concrete card identity.
+  // Silently defaulting to the batch's primary card is exactly what caused the
+  // cross-card duplication bug, so fail loudly rather than mis-attribute.
+  const unresolved = identities.filter(id => !id.cardLast4 || id.cardLast4.toUpperCase() === 'XXXX').length;
+  if (unresolved > 0) {
+    throw new Error(
+      `Refusing to sync: ${unresolved}/${identities.length} transaction(s) have no resolvable card_last4. ` +
+      `Re-run "npm run enrich:cc" so each transaction carries its own bank/card_last4.`
+    );
+  }
+
+  // A multi-card batch must carry per-transaction identity. If the file lists more
+  // than one card but the rows fall back to the single batch metadata, we cannot tell
+  // which card each row belongs to — refuse rather than collapse them onto one card.
+  const knownCards = Array.isArray(typedData.metadata.cards) ? typedData.metadata.cards : [];
+  const distinctKnownCards = new Set(knownCards.map((c: any) => `${c?.bank}__${c?.card_last4}`));
+  if (distinctKnownCards.size > 1 && identities.some(id => !id.ownIdentity)) {
+    throw new Error(
+      `Refusing to sync: this batch spans ${distinctKnownCards.size} cards but some transactions lack their own ` +
+      `card identity, so they would be mis-attributed to the primary card. Re-run "npm run enrich:cc".`
+    );
+  }
+
+  const distinctCards = new Set(identities.map(id => `${id.bank} *${id.cardLast4}`));
+  if (distinctCards.size > 1) {
+    console.log(`💳 Batch spans ${distinctCards.size} cards: ${[...distinctCards].join(', ')}`);
+    console.log('   → each transaction will be synced under its own card account.\n');
+  }
+
+  const transactionsForSync: TransactionForSync[] = typedData.transactions.map((txn: EnrichedTransaction, idx: number) => {
+    const { bank, cardLast4 } = identities[idx];
     const mergedSourceData = {
       ...(txn.source_data || {}),
       sync_origin: 'credit_card_scraper_ai',
-      card_last4: typedData.metadata.card_last4,
-      statement_period: typedData.metadata.statement_period,
+      bank,
+      card_last4: cardLast4,
+      statement_period: txn.source_data?.statement_period ?? txn.statement_period ?? typedData.metadata.statement_period,
       original_merchant: txn.merchant || null,
     };
 
     return {
-      bank: typedData.metadata.bank,
-      account_number: typedData.metadata.card_last4,
+      bank,
+      account_number: cardLast4,
       transaction_type: txn.transaction_type,
       amount: txn.amount,
       merchant: txn.merchant,
@@ -211,7 +264,7 @@ async function syncEnrichedTransactions() {
       date: txn.date,
       category: txn.category,
       category_id: txn.category_id,
-      reference_number: buildStableReference(typedData.metadata.card_last4, {
+      reference_number: buildStableReference(cardLast4, {
         date: txn.date,
         amount: txn.amount,
         transaction_type: txn.transaction_type,
