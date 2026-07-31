@@ -50,19 +50,23 @@ async function loadTransactionsItems() {
     return { items: [], source: filePath };
   }
 
-  const cardLast4 = data?.metadata?.card_last4 || '0000';
-  const bank = data?.metadata?.bank || 'Unknown Bank';
+  const defaultCardLast4 = data?.metadata?.card_last4 || '0000';
+  const defaultBank = data?.metadata?.bank || 'Unknown Bank';
 
-  const items = data.transactions.map((txn: any) => ({
-    amount: txn.amount,
-    date: txn.date || txn.transaction_date,
-    merchant: txn.merchant || null,
-    description: txn.description || null,
-    transaction_type: txn.transaction_type,
-    reference_number: txn.reference_number || `CC_${cardLast4}_${txn.date}_${txn.amount}`,
-    account_number: cardLast4,
-    bank
-  }));
+  const items = data.transactions.map((txn: any) => {
+    const cardLast4 = txn.card_last4 || defaultCardLast4;
+    const bank = txn.bank || defaultBank;
+    return {
+      amount: txn.amount,
+      date: txn.date || txn.transaction_date,
+      merchant: txn.merchant || null,
+      description: txn.description || null,
+      transaction_type: txn.transaction_type,
+      reference_number: txn.reference_number || `CC_${cardLast4}_${txn.date}_${txn.amount}`,
+      account_number: cardLast4,
+      bank
+    };
+  });
 
   return { items, source: filePath };
 }

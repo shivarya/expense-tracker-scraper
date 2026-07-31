@@ -71,6 +71,12 @@
     "merchant:suggest": "node scripts/suggest-merchant-aliases.mjs",
     "sync:cc:enriched": "tsx src/transactions/sync-enriched.ts",
     "sync:cc:emis": "tsx src/transactions/sync-emis.ts",
+    "loan:check-mail": "tsx src/home-loan/check-hdfc-loan-mail.ts",
+    "loan:download": "tsx src/home-loan/download-latest-home-loans.ts",
+    "loan:extract": "tsx src/home-loan/extract-home-loans.ts",
+    "loan:enrich": "tsx src/home-loan/enrich-home-loans.ts",
+    "sync:loan": "tsx src/home-loan/sync-home-loans.ts",
+    "sync:loan:full": "npm run loan:check-mail && npm run loan:download && npm run loan:extract && npm run loan:enrich && npm run sync:loan",
     "test:azure": "tsx src/test-azure.ts"
   },
   "dependencies": {
