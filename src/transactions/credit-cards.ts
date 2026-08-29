@@ -681,9 +681,10 @@ function detectBankAndCardType(text: string, cardLast4: string): {
     }
   } else if (upperText.includes('RBL BANK') || upperText.includes('RBLBANK')) {
     bankName = 'RBL';
-    
-    // RBL card types typically not in statement, but we can detect category
-    if (upperText.includes('CREDIT CARD')) {
+
+    if (upperText.includes('PLAY')) {
+      cardType = 'Play';
+    } else if (upperText.includes('CREDIT CARD')) {
       cardType = 'Credit Card';
     }
   }
