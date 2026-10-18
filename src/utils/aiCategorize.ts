@@ -3,7 +3,7 @@ import OpenAI from "openai";
 
 // ─── Canonical category data ────────────────────────────────────────────────
 
-const CANONICAL_IDS = new Set([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,51,52,53,54]);
+const CANONICAL_IDS = new Set([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,51,52,53,54,55,56,57,58]);
 
 export const CANONICAL_NAMES: Record<number, string> = {
   1:  "Food & Dining",
@@ -28,6 +28,10 @@ export const CANONICAL_NAMES: Record<number, string> = {
   52: "Household Help",
   53: "Kids Activities",
   54: "Software & Tools",
+  55: "Donation",
+  56: "Home Improvement",
+  57: "Gift",
+  58: "Clothing",
 };
 
 // ─── System prompt ───────────────────────────────────────────────────────────
@@ -40,7 +44,7 @@ Given a numbered list of credit card / bank transactions, return ONLY a JSON obj
 CANONICAL CATEGORY IDs — return ONLY these integers:
 1  = Food & Dining       (restaurants, cafes, Swiggy, Zomato, food delivery, dining out)
 2  = Transportation      (Ola, Uber, Rapido, metro, bus, petrol, diesel, cab rides)
-3  = Shopping            (Amazon, Flipkart, Myntra, AJIO, retail, fashion, electronics, home goods)
+3  = Shopping            (Amazon, Flipkart, retail, electronics, home goods)
 4  = Entertainment       (Netflix, Hotstar, Disney+, Tata Play, Spotify, movies, gaming, concerts, OTT)
 5  = Bills & Utilities   (electricity, water, internet, Airtel, Jio, ACT, mobile recharge, BBPS, telecom)
 6  = Healthcare          (Apollo, Netmeds, 1mg, pharmacy, hospital, clinic, lab tests, diagnostics)
@@ -60,6 +64,10 @@ CANONICAL CATEGORY IDs — return ONLY these integers:
 52 = Household Help      (cook, maid, bai, driver, watchman, domestic worker salary/payment)
 53 = Kids Activities     (karate, dance class, swimming, cricket academy, kids hobby/sports class)
 54 = Software & Tools    (GitHub, AWS, GCP, Azure, Figma, Notion, Vercel, Netlify, domains, SaaS for dev/work)
+55 = Donation            (charity donations, NGO contributions, relief funds, donation drives)
+56 = Home Improvement    (home repairs, renovation, plumbing, electrician work, home decor, furnishings)
+57 = Gift                (gift items, gift cards/vouchers, presents for birthdays/weddings/festivals)
+58 = Clothing            (clothes, footwear, ethnic wear, Myntra, AJIO, Zudio, Westside, Pantaloons, Max, H&M, Zara, Bata, school uniforms, tailoring/alterations, laundry/dry cleaning)
 
 CLASSIFICATION RULES (apply in order):
 1. Credits first: salary (14) / refund (15) / other income (16) unless clearly investment (13) or transfer (17)
@@ -70,8 +78,9 @@ CLASSIFICATION RULES (apply in order):
 6. Kids sports / hobby / activity class fees → 53
 7. Insurance premiums → 10 (not 5)
 8. Grocery delivery apps (Blinkit, Zepto, BigBasket, Instamart) → 9 (not 3)
-9. Person-to-person UPI, ATM withdrawal → 51
-10. Ambiguous debit → 51; ambiguous credit → 16
+9. Clothes, footwear and fashion stores/apps (Myntra, AJIO, Zudio, Westside) → 58 (not 3)
+10. Person-to-person UPI, ATM withdrawal → 51
+11. Ambiguous debit → 51; ambiguous credit → 16
 
 MERCHANT NAMING RULES:
 - Use well-known brand names, max 3 words: "Swiggy" not "SWIGGY FOODS INDIA LTD"
